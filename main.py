@@ -34,6 +34,8 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMedi
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 
+from keep_alive import keep_alive
+
 load_dotenv('key.env')
 domain = os.getenv('DOMAIN')
 api_token = os.getenv('API_KEY_SIMPLE')
@@ -622,6 +624,7 @@ scheduler.add_job(reset_downloaded, 'cron', hour=22)
 scheduler.add_job(create_accounts, 'cron', hour=23)
 scheduler.start()
 
+keep_alive()
 # scheduler.add_job(createAccount, 'interval', minutes=1)
 
 app.run()
