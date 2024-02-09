@@ -1,0 +1,14 @@
+psycopg2-binary
+pyshorteners
+lxml
+TgCrypto
+httpx
+APScheduler
+selenium
+cryptography
+python-dotenv
+Pyrogram
+bs4
+beautifulsoup4
+psycopg2
+pillow
