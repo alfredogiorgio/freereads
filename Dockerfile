@@ -13,6 +13,11 @@ RUN unzip chromedriver_linux64.zip
 RUN mv chromedriver /usr/bin/chromedriver
 RUN chmod +x /usr/bin/chromedriver
 
+RUN python3 -m venv /opt/venv
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 COPY requirements.txt .
 
 RUN pip install -r requirements.txt
