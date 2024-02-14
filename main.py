@@ -47,6 +47,7 @@ conn = psycopg2.connect(
     port=os.getenv('DB_PORT')
 )
 
+messages = json.load(open("browser.i18n.json", encoding="utf8"))
 
 key = os.getenv('ENCRYPTION_KEY')
 cipher_suite = Fernet(key)
@@ -63,15 +64,6 @@ driver = webdriver.Chrome(options=options)
 
 shortener = pyshorteners.Shortener()
 
-home_markup = InlineKeyboardMarkup([
-    [InlineKeyboardButton("📣 Canale", url="t.me/FreeReadsChannel")],
-    [InlineKeyboardButton("👤 Profilo", callback_data="profile"),
-     InlineKeyboardButton("📄 Categorie", callback_data="categories")],
-    [InlineKeyboardButton("🔥 Più popolari", callback_data="populars")],
-    [InlineKeyboardButton("🇮🇹 Lingua", callback_data="language"),
-     InlineKeyboardButton("🔧 Supporto", callback_data="assistence")]
-])
-
 
 # Comando start
 @app.on_message(filters.command('start') & filters.private)
@@ -83,12 +75,27 @@ async def start(app, message):
     rowUser = cur.fetchone()
 
     if rowUser is None:
-        sentMessage = await message.reply_text("""👋🏻 <i><b>Benvenuto!</b>
 
-🔍 Per <b>cercare</b> un libro, invia il titolo qui. 
+        home_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton(messages.get(message.from_user.language_code, "en")["channel_button"],
+                                  url="t.me/FreeReadsChannel")],
+            [InlineKeyboardButton(messages.get(message.from_user.language_code, "en")["profile_button"],
+                                  callback_data="profile"),
+             InlineKeyboardButton(messages.get(message.from_user.language_code, "en")["category_button"],
+                                  callback_data="categories")],
+            [InlineKeyboardButton(messages.get(message.from_user.language_code, "en")["populars_button"],
+                                  callback_data="populars")],
+            [InlineKeyboardButton(messages.get(message.from_user.language_code, "en")["language_button"],
+                                  callback_data="language"),
+             InlineKeyboardButton(messages.get(message.from_user.language_code, "en")["support_button"],
+                                  callback_data="assistence")]
+        ])
 
-❗ Ricorda, hai a disposizione <b>5 download al giorno</b>. Fanne buon uso!</i>""", quote=True,
-                                               reply_markup=home_markup)
+        sentMessage = await message.reply_text(
+            text=messages.get(message.from_user.language_code, "en")['welcome'].format(
+                username=message.from_user.mention()),
+            quote=True,
+            reply_markup=home_markup)
 
         idAccount = 0
         actUsers = 0
@@ -102,22 +109,36 @@ async def start(app, message):
         cur.execute("UPDATE accounts SET act_users = %s WHERE id = %s", (actUsers + 1, idAccount))
 
         cur.execute(
-            "INSERT INTO users (id, last_message, account_id, download_limit, downloaded, step) VALUES (%s, %s, %s, "
-            "%s, %s, %s)",
-            (message.from_user.id, sentMessage.id, idAccount, 5, 0, "cerca"))
+            "INSERT INTO users (id, last_message, account_id, download_limit, downloaded, step, lang) VALUES (%s, %s, "
+            "%s,"
+            "%s, %s, %s, %s)",
+            (message.from_user.id, sentMessage.id, idAccount, 5, 0, "cerca", message.from_user.language_code))
         conn.commit()
 
     if rowUser is not None:
+        home_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton(messages[rowUser[6]]["channel_button"],
+                                  url="t.me/FreeReadsChannel")],
+            [InlineKeyboardButton(messages[rowUser[6]]["profile_button"],
+                                  callback_data="profile"),
+             InlineKeyboardButton(messages[rowUser[6]]["category_button"],
+                                  callback_data="categories")],
+            [InlineKeyboardButton(messages[rowUser[6]]["populars_button"],
+                                  callback_data="populars")],
+            [InlineKeyboardButton(messages[rowUser[6]]["language_button"],
+                                  callback_data="language"),
+             InlineKeyboardButton(messages[rowUser[6]]["support_button"], callback_data="assistence")]
+        ])
+
         now = datetime.datetime.now()
-        hour = datetime.datetime.now().replace(day=now.day, hour=22, minute=0, second=0)
+        hour = datetime.datetime.now().replace(day=now.day, hour=21, minute=0, second=0)
         difference = hour - now
 
         await message.reply_text(
-            text=f"""<i>👋🏻 <b>Bentornato!</b> 
 
-📕 Oggi hai scaricato <b>{rowUser[4]}</b> libri.
-
-🕛 Tra <b>{difference}</b> il counter verrà resettato!</i>""", reply_markup=home_markup
+            text=messages[rowUser[6]]["home"].format(username=message.from_user.mention(),
+                                                     difference=difference, downloaded=rowUser[4]),
+            reply_markup=home_markup
         )
 
 
@@ -234,6 +255,43 @@ async def answer(app, callback_query):
 
     rowUserAndAccount = cur.fetchone()
 
+    home_button = [InlineKeyboardButton("↩️ Home", callback_data="home")]
+
+    if len(callback_query.data.split("_")) == 3 and callback_query.data.split("_")[2] == "set":
+        cur.execute("UPDATE users SET lang = %s WHERE id = %s",
+                    (callback_query.data.split("_")[0], callback_query.from_user.id))
+        conn.commit()
+
+        reply_markup = InlineKeyboardMarkup([home_button])
+
+        await app.edit_message_text(text=messages[callback_query.data.split("_")[0]]["lang_edit_succ"],
+                                    chat_id=callback_query.from_user.id, message_id=callback_query.message.id,
+                                    reply_markup=reply_markup)
+
+    if callback_query.data == "language":
+
+        horizList = []
+        vertList = []
+        lang_list = []
+        for keys in messages:
+            if rowUserAndAccount[6] not in keys:
+                lang_list.append(keys + "_button_set")
+
+        for lang in lang_list:
+            horizList.append(InlineKeyboardButton(messages[lang.split("_")[0]][lang], callback_data=lang))
+            if len(horizList) == 2:
+                vertList.append(horizList)
+                horizList = []
+            if len(horizList) < 2 and lang_list[-1] == lang:
+                vertList.append(horizList)
+
+        vertList.append(home_button)
+        reply_markup = InlineKeyboardMarkup(vertList)
+
+        await app.edit_message_text(text=messages[rowUserAndAccount[6]]["language"],
+                                    chat_id=callback_query.from_user.id, message_id=callback_query.message.id,
+                                    reply_markup=reply_markup)
+
     if callback_query.data == "downloadedBooks":
         reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Indietro", callback_data="profile")]])
         await app.edit_message_text(text="downloadedBooks",
@@ -245,7 +303,7 @@ async def answer(app, callback_query):
             [InlineKeyboardButton("📚 Libri scaricati", callback_data="downloadedBooks"),
              InlineKeyboardButton("⭐ Preferiti", callback_data="favorites")],
             [InlineKeyboardButton("🔖 Lista desideri", callback_data="wishList")],
-            [InlineKeyboardButton("↩️ Indietro", callback_data="home")]
+            [home_button]
         ])
 
         await app.edit_message_text(text="💭 <i> Questo è la sezione dedicata al tuo profilo!</i>",
@@ -253,16 +311,29 @@ async def answer(app, callback_query):
                                     reply_markup=reply_markup)
 
     if callback_query.data == "home":
+        home_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton(messages[rowUserAndAccount[6]]["channel_button"],
+                                  url="t.me/FreeReadsChannel")],
+            [InlineKeyboardButton(messages[rowUserAndAccount[6]]["profile_button"],
+                                  callback_data="profile"),
+             InlineKeyboardButton(messages[rowUserAndAccount[6]]["category_button"],
+                                  callback_data="categories")],
+            [InlineKeyboardButton(messages[rowUserAndAccount[6]]["populars_button"],
+                                  callback_data="populars")],
+            [InlineKeyboardButton(messages[rowUserAndAccount[6]]["language_button"],
+                                  callback_data="language"),
+             InlineKeyboardButton(messages[rowUserAndAccount[6]]["support_button"], callback_data="assistence")]
+        ])
+
         now = datetime.datetime.now()
-        hour = datetime.datetime.now().replace(day=now.day, hour=22, minute=0, second=0)
+        hour = datetime.datetime.now().replace(day=now.day, hour=21, minute=0, second=0)
         difference = hour - now
 
         await app.edit_message_text(
-            text=f"""<i>👋🏻 <b>Bentornato!</b> 
-
-📕 Oggi hai scaricato <b>{rowUserAndAccount[4]}</b> libri.
-
-🕛 Tra <b>{difference}</b> il counter verrà resettato!</i>""", reply_markup=home_markup,
+            text=messages[rowUserAndAccount[6]]['home'].format(username=callback_query.from_user.mention(),
+                                                               difference=difference,
+                                                               downloaded=rowUserAndAccount[4]),
+            reply_markup=home_markup,
             chat_id=callback_query.from_user.id, message_id=callback_query.message.id
         )
 

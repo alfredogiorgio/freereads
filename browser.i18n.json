@@ -1,0 +1,41 @@
+{
+  "it": {
+    "welcome": "<i>👋🏻 Benvenuto/a, <b>{username}</b>!\n\n🔍 Per <b>cercare</b> un libro, invia il titolo in questo chat. \n\n❗ Ricorda, hai a disposizione <b>5</b> download al giorno. Fanne buon uso!\n\n📖 Buona <b>lettura</b>!</i>",
+    "home": "<i>👋🏻 Bentornato/a, <b>{username}</b>! \n\n📕 Oggi hai scaricato <b>{downloaded}</b> libro/i.\n\n🕛 Tra <b>{difference}</b>, il counter dei libri scaricati verrà azzerato!\n\n📖 Buona <b>lettura</b>!</i>",
+    "channel_button": "📣 Canale",
+    "profile_button": "👤 Profilo",
+    "category_button": "\uD83D\uDCC4 Categorie",
+    "populars_button": "\uD83D\uDD25 Più popolari",
+    "language_button": "\uD83C\uDDEE\uD83C\uDDF9 Lingua",
+    "support_button": "\uD83D\uDD27 Supporto",
+    "it_button_set": "\uD83C\uDDEE\uD83C\uDDF9 Italiano",
+    "language": "<i>👇🏻 Scegli la <b>lingua</b> cliccando su una di quelle disponibili qui sotto!</i>",
+    "lang_edit_succ": "<i>✅ Lingua <b>modificata</b> correttamente!\n\n\uD83C\uDDEE\uD83C\uDDF9 Da adesso, le schermate saranno visualizzate in <b>Italiano</b>.</i>"
+  },
+  "en": {
+    "welcome": "<i>👋🏻 Welcome, <b>{username}</b>!\n\n\uD83D\uDD0D To <b>search</b> for a book, send the title in this chat. \n\n❗ Remember, you have <b>5</b> downloads per day. Make good use of them!\n\n\uD83D\uDCD6 Happy <b>reading</b>!</i>",
+    "home": "<i>👋🏻 Welcome back, <b>{username}</b>! \n\n\uD83D\uDCD5 Today you have downloaded <b>{downloaded}</b> book(s).\n\n\uD83D\uDD5B In <b>{difference}</b>, the book download count will be reset!\n\n\uD83D\uDCD6 Happy <b>reading</b>!</i>",
+    "channel_button": "📣 Channel",
+    "profile_button": "👤 Profile",
+    "category_button": "\uD83D\uDCC4 Categories",
+    "populars_button": "\uD83D\uDD25 More popular",
+    "language_button": "\uD83C\uDDEC\uD83C\uDDE7 Language",
+    "support_button": "\uD83D\uDD27 Support",
+    "en_button_set": "\uD83C\uDDEC\uD83C\uDDE7 English",
+    "language": "<i>👇🏻 Choose the <b>language</b> by clicking on one of the ones available below!</i>",
+    "lang_edit_succ": "<i>✅ Language <b>changed</b> successfully!\n\n\uD83C\uDDEC\uD83C\uDDE7 From now on, the screens will be displayed in <b>English</b>.</i>"
+  },
+  "es": {
+    "welcome": "<i>👋🏻 Bienvenido/a, <b>{username}</b>!\n\n\uD83D\uDD0DPara <b>buscar</b> un libro, envía el título en este chat. \n\n❗ Recuerda, tienes <b>5</b> descargas por día. ¡Aprovéchalas!\n\n\uD83D\uDCD6 Feliz <b>lectura</b>!</i>",
+    "home": "<i>👋🏻 ¡Bienvenido/a de nuevo, <b>{username}</b>! \n\n\uD83D\uDCD5 Hoy has descargado <b>{downloaded}</b> libro(s).\n\n\uD83D\uDD5B En <b>{difference}</b>, el contador de libros descargados se reiniciará!\n\n\uD83D\uDCD6 ¡Feliz <b>lectura</b>!</i>",
+    "channel_button": "📣 Canal",
+    "profile_button": "👤 Perfil",
+    "category_button": "\uD83D\uDCC4 Categorias",
+    "populars_button": "\uD83D\uDD25 Más popular",
+    "language_button": "\uD83C\uDDEA\uD83C\uDDE6 Lengua",
+    "support_button": "\uD83D\uDD27 Apoyo",
+    "es_button_set": "\uD83C\uDDEA\uD83C\uDDE6 Español",
+    "language": "<i>👇🏻 Elige el <b>idioma</b> haciendo clic en uno de los disponibles a continuación!</i>",
+    "lang_edit_succ": "<i>✅ Idioma <b>cambiado</b> correctamente!\n\n\uD83C\uDDEA\uD83C\uDDE6 A partir de ahora, las pantallas se mostrarán en <b>Español</b>.</i>"
+  }
+}
