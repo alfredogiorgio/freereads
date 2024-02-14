@@ -11,9 +11,7 @@ from PIL import Image
 
 import random
 from email.header import decode_header
-import sys
 
-import os
 from io import BytesIO
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -24,13 +22,11 @@ from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 import os
 import pyshorteners
-import lxml
 from pyrogram import Client, filters
-import tgcrypto
 import imaplib
 from bs4 import BeautifulSoup
 import httpx
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 
@@ -51,7 +47,6 @@ conn = psycopg2.connect(
     port=os.getenv('DB_PORT')
 )
 
-cur = conn.cursor()
 
 key = os.getenv('ENCRYPTION_KEY')
 cipher_suite = Fernet(key)
@@ -81,6 +76,8 @@ home_markup = InlineKeyboardMarkup([
 # Comando start
 @app.on_message(filters.command('start') & filters.private)
 async def start(app, message):
+    cur = conn.cursor()
+
     cur.execute("SELECT * FROM users WHERE id = %s",
                 (message.from_user.id,))
     rowUser = cur.fetchone()
@@ -127,6 +124,8 @@ async def start(app, message):
 # Ricerca
 @app.on_message(filters.text & filters.private)
 async def request(app, message):
+    cur = conn.cursor()
+
     cur.execute("SELECT * FROM users WHERE id = %s",
                 (message.from_user.id,))
     rowUser = cur.fetchone()
@@ -224,6 +223,8 @@ async def request(app, message):
 
 @app.on_callback_query()
 async def answer(app, callback_query):
+    cur = conn.cursor()
+
     cur.execute("""
         SELECT users.*, accounts.*
         FROM users
@@ -286,88 +287,87 @@ async def answer(app, callback_query):
 
         await app.edit_message_text(text=f"⏳ <i>Carico le informazioni...</i>",
                                     chat_id=callback_query.from_user.id, message_id=formatState.id)
-        # try:
-        element = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "a.addDownloadedBook"))
-        )
+        try:
+            element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "a.addDownloadedBook"))
+            )
 
-        html = driver.page_source
-        soup = BeautifulSoup(html, 'html.parser')
-        drop = soup.find('ul', {'class': 'dropdown-menu'})
-        downloadListHoriz = []
-        downloadListVert = []
-        aButton = soup.find('a', {'class': 'btn btn-primary addDownloadedBook'}, href=True)
-        urlButton = aButton.get('href')
-        completeButton = "https://z-library.se" + urlButton
-        shortButton = shortener.tinyurl.short(completeButton)
+            html = driver.page_source
+            soup = BeautifulSoup(html, 'html.parser')
+            drop = soup.find('ul', {'class': 'dropdown-menu'})
+            downloadListHoriz = []
+            downloadListVert = []
+            aButton = soup.find('a', {'class': 'btn btn-primary addDownloadedBook'}, href=True)
+            urlButton = aButton.get('href')
+            completeButton = "https://z-library.se" + urlButton
+            shortButton = shortener.tinyurl.short(completeButton)
 
-        aS = drop.find_all('a', {'class': 'addDownloadedBook'}, href=True)
-        aS.append(aButton)
-        pdf = 0
-        for a in aS:
-            if a is not None:
+            aS = drop.find_all('a', {'class': 'addDownloadedBook'}, href=True)
+            aS.append(aButton)
+            pdf = 0
+            for a in aS:
+                if a is not None:
 
-                text = a.text.upper()
+                    text = a.text.upper()
 
-                if "pdf" in text.lower():
-                    pdf = 1
+                    if "pdf" in text.lower():
+                        pdf = 1
 
-                if a == aS[-1]:
-                    text = re.search(r'\((.+?)\)', aButton.text).group(1).upper().replace(",", "")
+                    if a == aS[-1]:
+                        text = re.search(r'\((.+?)\)', aButton.text).group(1).upper().replace(",", "")
 
-                url = a.get('href')
+                    url = a.get('href')
 
-                complete = "https://z-library.se" + url
-                short_url = shortener.tinyurl.short(complete)
+                    complete = "https://z-library.se" + url
+                    short_url = shortener.tinyurl.short(complete)
 
-                downloadListHoriz.append(InlineKeyboardButton(
-                    text,
-                    callback_data="download/" + short_url
-                ))
-                if len(downloadListHoriz) == 3:
-                    downloadListVert.append(downloadListHoriz)
-                    downloadListHoriz = []
-                if a == aS[-1] and len(downloadListHoriz) < 3:
-                    downloadListVert.append(downloadListHoriz)
-        if pdf == 0:
-            downloadListVert.append([InlineKeyboardButton(
-                "📄 PDF",
-                callback_data="download/" + shortButton + "-convert")])
-        reply_markup = InlineKeyboardMarkup(
-            downloadListVert
-        )
-        book = soup.find("h1", {"itemprop": "name"})
-        cover = soup.find("div", {"class": "z-book-cover covered"}).find("img").get("src")
-        async with httpx.AsyncClient() as http:
-            coverFile = (await http.get(cover))
-        book_cover = Image.open(BytesIO(coverFile.content))
+                    downloadListHoriz.append(InlineKeyboardButton(
+                        text,
+                        callback_data="download/" + short_url
+                    ))
+                    if len(downloadListHoriz) == 3:
+                        downloadListVert.append(downloadListHoriz)
+                        downloadListHoriz = []
+                    if a == aS[-1] and len(downloadListHoriz) < 3:
+                        downloadListVert.append(downloadListHoriz)
+            if pdf == 0:
+                downloadListVert.append([InlineKeyboardButton(
+                    "📄 PDF",
+                    callback_data="download/" + shortButton + "-convert")])
+            reply_markup = InlineKeyboardMarkup(
+                downloadListVert
+            )
+            book = soup.find("h1", {"itemprop": "name"})
+            cover = soup.find("div", {"class": "z-book-cover covered"}).find("img").get("src")
+            async with httpx.AsyncClient() as http:
+                coverFile = (await http.get(cover))
+            book_cover = Image.open(BytesIO(coverFile.content))
 
-        altezza_massima = 400
-        rapporto = altezza_massima / book_cover.height
-        dimensione_nuova = (int(book_cover.width * rapporto), altezza_massima)
-        book_cover_resized = book_cover.resize(dimensione_nuova, Image.LANCZOS)
+            altezza_massima = 400
+            rapporto = altezza_massima / book_cover.height
+            dimensione_nuova = (int(book_cover.width * rapporto), altezza_massima)
+            book_cover_resized = book_cover.resize(dimensione_nuova, Image.LANCZOS)
 
-        beige_back = Image.new('RGB', (1080, 580), (245, 245, 220))
-        position = ((beige_back.width - book_cover_resized.width) // 2,
-                    (beige_back.height - book_cover_resized.height) // 2)
-        beige_back.paste(book_cover_resized, position)
-        buffer = BytesIO()
-        beige_back.save(buffer, format='JPEG')
-        buffer.seek(0)
-        print(buffer.getvalue())
-        await app.send_photo(photo=buffer,
-                             caption=f"✨<i> Ecco i formati disponibili per <b>{book.text.strip().lower()}</b>.\n\n📕 Scegli "
-                                     f"quello che preferisci, clicca il bottone, e partirà il <b>download</b>.</i>",
-                             reply_markup=reply_markup, chat_id=callback_query.from_user.id)
+            beige_back = Image.new('RGB', (1080, 580), (245, 245, 220))
+            position = ((beige_back.width - book_cover_resized.width) // 2,
+                        (beige_back.height - book_cover_resized.height) // 2)
+            beige_back.paste(book_cover_resized, position)
+            buffer = BytesIO()
+            beige_back.save(buffer, format='JPEG')
+            buffer.seek(0)
+            await app.send_photo(photo=buffer,
+                                 caption=f"✨<i> Ecco i formati disponibili per <b>{book.text.strip().lower()}</b>.\n\n📕 Scegli "
+                                         f"quello che preferisci, clicca il bottone, e partirà il <b>download</b>.</i>",
+                                 reply_markup=reply_markup, chat_id=callback_query.from_user.id)
 
-        await formatState.delete()
+            await formatState.delete()
 
-    # except:
-    #   await app.edit_message_text(
-    #      text=f"🥺<i> Purtroppo, il libro potrebbe non essere più <b>disponibile</b>.\n\n📖 Prova a "
-    #          f"scegliere un'<b>edizione</b> diversa.</i>",
-    #    chat_id=callback_query.from_user.id,
-    #   message_id=formatState.id)
+        except:
+            await app.edit_message_text(
+                text=f"🥺<i> Purtroppo, il libro potrebbe non essere più <b>disponibile</b>.\n\n📖 Prova a "
+                     f"scegliere un'<b>edizione</b> diversa.</i>",
+                chat_id=callback_query.from_user.id,
+                message_id=formatState.id)
 
     if callback_query.data.split("/", 1)[0] == "download":
 
@@ -378,8 +378,6 @@ async def answer(app, callback_query):
             responseTiny = await http.get(url)
             file_url = responseTiny.headers['Location']
         idBook = re.search(r'/dl/(\d+)/', file_url).group(1)
-        print(file_url)
-        print(idBook)
 
         cur.execute("SELECT * FROM books WHERE id = %s", (idBook,))
         rowBook = cur.fetchone()
@@ -480,6 +478,8 @@ async def answer(app, callback_query):
 
 
 async def create_account():
+    cur = conn.cursor()
+
     async with httpx.AsyncClient() as http:
         response_creation = await http.post("https://api.simplelogin.io/api/alias/random/new", headers={
             "Authentication": api_token,
@@ -571,6 +571,8 @@ async def create_account():
 
 
 async def reset_downloaded():
+    cur = conn.cursor()
+
     cur.execute("UPDATE users SET downloaded = 0")
     cur.execute("SELECT * FROM users")
     rows = cur.fetchall()
@@ -592,9 +594,7 @@ async def converter(cookies, file_url, last_message, callback_query, name):
         message_id=last_message.id,
         chat_id=callback_query.from_user.id)
     async with httpx.AsyncClient() as http:
-        responseConversion = await http.get(file_url + "?convertedTo=pdf", cookies=cookies)
-    moved = responseConversion.headers['Location']
-    async with httpx.AsyncClient() as http:
+        moved = (await http.get(file_url + "?convertedTo=pdf", cookies=cookies, timeout=30)).headers['Location']
         lastMoved = await http.get(moved)
 
     await app.edit_message_text(
@@ -620,8 +620,8 @@ async def create_accounts():
 
 
 scheduler = AsyncIOScheduler()
-scheduler.add_job(reset_downloaded, 'cron', hour=22)
-scheduler.add_job(create_accounts, 'cron', hour=23)
+scheduler.add_job(reset_downloaded, 'cron', hour=21)
+scheduler.add_job(create_accounts, 'cron', hour=22)
 scheduler.start()
 
 keep_alive()
