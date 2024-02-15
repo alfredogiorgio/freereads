@@ -343,7 +343,7 @@ async def answer(app, callback_query):
                                              chat_id=callback_query.from_user.id)
 
         url = callback_query.data.split("/", 1)[1]
-        cipher_text = base64.b64decode(rowUserAndAccount[8])
+        cipher_text = base64.b64decode(rowUserAndAccount[9])
         cookies = json.loads(cipher_suite.decrypt(cipher_text).decode())
         async with httpx.AsyncClient() as http:
             responseTiny = await http.get(url)
@@ -510,7 +510,7 @@ async def answer(app, callback_query):
                     text="✉️ <i>Ho iniziato il <b>download</b>. Attendi in linea!</i>",
                     chat_id=callback_query.from_user.id)
 
-                cipher_text = base64.b64decode(rowUserAndAccount[8])
+                cipher_text = base64.b64decode(rowUserAndAccount[9])
                 cookies = json.loads(cipher_suite.decrypt(cipher_text).decode())
 
                 async with httpx.AsyncClient() as http:
