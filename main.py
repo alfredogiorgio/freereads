@@ -6,6 +6,8 @@ import secrets
 import string
 import datetime
 import re
+import time
+
 import psycopg2
 from PIL import Image
 
@@ -60,7 +62,6 @@ options.add_argument("--headless")
 options.add_argument("--disable-gpu")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
-driver = webdriver.Chrome(options=options)
 
 shortener = pyshorteners.Shortener()
 
@@ -88,7 +89,9 @@ async def start(app, message):
             [InlineKeyboardButton(messages.get(message.from_user.language_code, "en")["language_button"],
                                   callback_data="language"),
              InlineKeyboardButton(messages.get(message.from_user.language_code, "en")["support_button"],
-                                  callback_data="assistence")]
+                                  callback_data="assistence")],
+            [InlineKeyboardButton(messages.get(message.from_user.language_code, "en")["search_button"],
+                                  callback_data="search")]
         ])
 
         sentMessage = await message.reply_text(
@@ -112,7 +115,7 @@ async def start(app, message):
             "INSERT INTO users (id, last_message, account_id, download_limit, downloaded, step, lang) VALUES (%s, %s, "
             "%s,"
             "%s, %s, %s, %s)",
-            (message.from_user.id, sentMessage.id, idAccount, 5, 0, "cerca", message.from_user.language_code))
+            (message.from_user.id, sentMessage.id, idAccount, 5, 0, "home", message.from_user.language_code))
         conn.commit()
 
     if rowUser is not None:
@@ -127,7 +130,9 @@ async def start(app, message):
                                   callback_data="populars")],
             [InlineKeyboardButton(messages[rowUser[6]]["language_button"],
                                   callback_data="language"),
-             InlineKeyboardButton(messages[rowUser[6]]["support_button"], callback_data="assistence")]
+             InlineKeyboardButton(messages[rowUser[6]]["support_button"], callback_data="assistence")],
+            [InlineKeyboardButton(messages[rowUser[6]]["search_button"],
+                                  callback_data="search")]
         ])
 
         now = datetime.datetime.now()
@@ -151,95 +156,107 @@ async def request(app, message):
                 (message.from_user.id,))
     rowUser = cur.fetchone()
 
-    if rowUser is not None and rowUser[5] == 'cerca':
-        stateMessage = await app.send_message(text="🔍 <i>Sto cercando...</i>",
+    if rowUser is not None and rowUser[5] == 'search':
+        stateMessage = await app.send_message(text=messages[rowUser[6]]["search_loading"],
                                               chat_id=message.from_user.id)
+
+        responseList = []
+
         async with httpx.AsyncClient() as http:
-            response = await http.get(domain + '/s/' + message.text, timeout=30)
-        content = response.content
+            response = await http.get(domain + '/s/' + message.text, timeout=30, cookies={"siteLanguage": "en"})
+
+        content = response
         soup = BeautifulSoup(content, 'lxml')
+
         box = soup.find("div", {"id": "searchResultBox"})
-        divs = box.find_all("div", {"class": "resItemBox resItemBoxBooks exactMatch"})
-        if len(divs) > 0:
-            result = []
-            for div in divs:
-                resultJson = {}
-                resultJson['name'] = div.find("h3", {"itemprop": "name"}).text.strip()
-                pub = div.find("a", {"title": "Publisher"})
-                if pub is not None:
-                    resultJson['pub'] = pub.text
-                resultJson['url'] = (div.find("h3", {"itemprop": "name"}).find('a', href=True).get('href'))
-                label = div.find("div", {"class": "bookProperty property_year"})
-                if label is not None:
-                    resultJson['year'] = label.find("div", {"class": "property_value"}).text
-                authors = div.find("div", {"class": "authors"}).find_all('a', href=True)
-                lang = div.find("div", {"class": "property_value text-capitalize"})
-                if lang is not None:
-                    resultJson['lang'] = lang.text
 
-                authorsText = []
-                for author in authors:
-                    authorsText.append(author.text)
-                resultJson['author'] = ' '.join(authorsText)
-                result.append(resultJson)
+        if box != None:
+            divs = box.find_all("div", {"class": "resItemBox resItemBoxBooks exactMatch"})
 
-            results = "✨ <i>Ecco i risultati per <b>" + message.text.strip().lower() + "</b>:</i> \n\n"
+            if len(divs) > 0:
+                result = []
+                for div in divs:
+                    resultJson = {}
+                    resultJson['name'] = div.find("h3", {"itemprop": "name"}).text.strip()
+                    pub = div.find("a", {"title": "Publisher"})
+                    if pub is not None:
+                        resultJson['pub'] = pub.text
+                    resultJson['url'] = (div.find("h3", {"itemprop": "name"}).find('a', href=True).get('href'))
+                    label = div.find("div", {"class": "bookProperty property_year"})
+                    if label is not None:
+                        resultJson['year'] = label.find("div", {"class": "property_value"}).text
+                    authors = div.find("div", {"class": "authors"}).find_all('a', href=True)
+                    lang = div.find("div", {"class": "property_value text-capitalize"})
+                    if lang is not None:
+                        resultJson['lang'] = lang.text
 
-            listButtonsRow = []
-            listButtonsTotal = []
+                    authorsText = []
+                    for author in authors:
+                        authorsText.append(author.text)
+                    resultJson['author'] = ' '.join(authorsText)
+                    result.append(resultJson)
 
-            await app.edit_message_text(text="💡<i>Libro trovato! Sto elaborando i risultati...</i>",
-                                        chat_id=message.from_user.id,
-                                        message_id=stateMessage.id)
+                results = messages[rowUser[6]]["search_results"].format(query=message.text.strip().lower())
 
-            for res in result[:10]:
-                index = result.index(res)
-                complete = domain + res['url']
+                listButtonsRow = []
+                listButtonsTotal = []
 
-                short_url = shortener.tinyurl.short(complete)
-                if len(res['author']) == 0 and 'pub' not in res.keys() and 'year' not in res.keys():
-                    results = results + f"""{index + 1})<b> {res['name']}</b> - <i>{res['lang']}</i>\n\n"""
-                else:
-                    results = results + f"""{index + 1})<b> {res['name']}</b> - <i>{res['lang']}</i>\n"""
+                await app.edit_message_text(text=messages[rowUser[6]]["search_found"],
+                                            chat_id=message.from_user.id,
+                                            message_id=stateMessage.id)
 
-                if len(res['author']) > 0:
+                for res in result[:10]:
+                    index = result.index(res)
+                    complete = domain + res['url']
 
-                    if 'year' not in res.keys() and 'pub' not in res.keys():
-                        results = results + f"""     └ 🖊️ <i>{res['author']}</i> \n\n"""
+                    print(complete)
+
+                    short_url = shortener.tinyurl.short(complete)
+                    if len(res['author']) == 0 and 'pub' not in res.keys() and 'year' not in res.keys():
+                        results = results + f"""{index + 1})<b> {res['name']}</b> - <i>{res['lang']}</i>\n\n"""
                     else:
-                        results = results + f"""     ├ 🖊️ <i>{res['author']}</i> \n"""
+                        results = results + f"""{index + 1})<b> {res['name']}</b> - <i>{res['lang']}</i>\n"""
 
-                if 'year' in res.keys():
+                    if len(res['author']) > 0:
+
+                        if 'year' not in res.keys() and 'pub' not in res.keys():
+                            results = results + f"""     └ 🖊️ <i>{res['author']}</i> \n\n"""
+                        else:
+                            results = results + f"""     ├ 🖊️ <i>{res['author']}</i> \n"""
+
+                    if 'year' in res.keys():
+                        if 'pub' in res.keys():
+                            results = results + f"""     ├ ⌛ <i>{res['year']}</i> \n"""
+                        else:
+                            results = results + f"""     └ ⌛ <i>{res['year']}</i> \n\n"""
+
                     if 'pub' in res.keys():
-                        results = results + f"""     ├ ⌛ <i>{res['year']}</i> \n"""
-                    else:
-                        results = results + f"""     └ ⌛ <i>{res['year']}</i> \n\n"""
+                        results = results + f"""     └ 📘 <i>{res['pub']}</i> \n\n"""
 
-                if 'pub' in res.keys():
-                    results = results + f"""     └ 📘 <i>{res['pub']}</i> \n\n"""
+                    if index % 5 == 0:
+                        listButtonsRow = []
+                        listButtonsTotal.append(listButtonsRow)
+                    listButtonsRow.append(InlineKeyboardButton(
+                        str(index + 1),
+                        callback_data="formats/" + short_url
+                    ))
 
-                if index % 5 == 0:
-                    listButtonsRow = []
-                    listButtonsTotal.append(listButtonsRow)
-                listButtonsRow.append(InlineKeyboardButton(
-                    str(index + 1),
-                    callback_data="formats/" + short_url
-                ))
+                reply_markup = InlineKeyboardMarkup(listButtonsTotal)
 
-            reply_markup = InlineKeyboardMarkup(listButtonsTotal)
-
-            await app.edit_message_text(
-                text=results + "👇🏻 <i>Per <b>visualizzare</b> i formati disponibili e <b>scaricare</b> il libro, "
-                               "premi sul numero di riferimento tra quelli qui sotto.</i>",
-                disable_web_page_preview=True, reply_markup=reply_markup,
-                message_id=stateMessage.id, chat_id=message.from_user.id)
+                await app.edit_message_text(
+                    text=results + messages[rowUser[6]]["search_indications"],
+                    disable_web_page_preview=True, reply_markup=reply_markup,
+                    message_id=stateMessage.id, chat_id=message.from_user.id)
+            else:
+                await app.edit_message_text(
+                    text=messages[rowUser[6]]["search_not_found"].format(title=message.text.strip().lower()),
+                    message_id=stateMessage.id, chat_id=message.from_user.id)
         else:
             await app.edit_message_text(
-                text=f"❌ <i>Purtroppo, non ho trovato alcun libro con titolo <b>{message.text.strip().lower()}</b>.\n"
-                     f"\n💡 Prova a scrivere il titolo in un altra <b>lingua</b>, o presta attenzione ad eventuali "
-                     f"<b>errori</b>.</i>",
+                text=messages[rowUser[6]]["search_not_found"].format(title=message.text.strip().lower()),
                 message_id=stateMessage.id, chat_id=message.from_user.id)
-        await message.delete()
+
+    await message.delete()
 
 
 @app.on_callback_query()
@@ -256,6 +273,19 @@ async def answer(app, callback_query):
     rowUserAndAccount = cur.fetchone()
 
     home_button = [InlineKeyboardButton("↩️ Home", callback_data="home")]
+
+    if callback_query.data == "search":
+        reply_markup = InlineKeyboardMarkup([
+            home_button
+        ])
+
+        cur.execute("UPDATE users SET step = %s WHERE id = %s",
+                    ("search", callback_query.from_user.id))
+        conn.commit()
+
+        await app.edit_message_text(text=messages[rowUserAndAccount[6]]["search"],
+                                    chat_id=callback_query.from_user.id, message_id=callback_query.message.id,
+                                    reply_markup=reply_markup)
 
     if len(callback_query.data.split("_")) == 3 and callback_query.data.split("_")[2] == "set":
         cur.execute("UPDATE users SET lang = %s WHERE id = %s",
@@ -303,7 +333,7 @@ async def answer(app, callback_query):
             [InlineKeyboardButton("📚 Libri scaricati", callback_data="downloadedBooks"),
              InlineKeyboardButton("⭐ Preferiti", callback_data="favorites")],
             [InlineKeyboardButton("🔖 Lista desideri", callback_data="wishList")],
-            [home_button]
+            home_button
         ])
 
         await app.edit_message_text(text="💭 <i> Questo è la sezione dedicata al tuo profilo!</i>",
@@ -311,6 +341,10 @@ async def answer(app, callback_query):
                                     reply_markup=reply_markup)
 
     if callback_query.data == "home":
+        cur.execute("UPDATE users SET step = %s WHERE id = %s",
+                    ("home", callback_query.from_user.id))
+        conn.commit()
+
         home_markup = InlineKeyboardMarkup([
             [InlineKeyboardButton(messages[rowUserAndAccount[6]]["channel_button"],
                                   url="t.me/FreeReadsChannel")],
@@ -322,7 +356,9 @@ async def answer(app, callback_query):
                                   callback_data="populars")],
             [InlineKeyboardButton(messages[rowUserAndAccount[6]]["language_button"],
                                   callback_data="language"),
-             InlineKeyboardButton(messages[rowUserAndAccount[6]]["support_button"], callback_data="assistence")]
+             InlineKeyboardButton(messages[rowUserAndAccount[6]]["support_button"], callback_data="assistence")],
+            [InlineKeyboardButton(messages[rowUserAndAccount[6]]["search_button"],
+                                  callback_data="search")]
         ])
 
         now = datetime.datetime.now()
@@ -339,15 +375,25 @@ async def answer(app, callback_query):
 
     if callback_query.data.split("/", 1)[0] == "formats":
 
-        formatState = await app.send_message(text="📃<i> Sto verificando i formati disponibili...</i>",
+        formatState = await app.send_message(text=messages[rowUserAndAccount[6]]['formats_loading'],
                                              chat_id=callback_query.from_user.id)
 
         url = callback_query.data.split("/", 1)[1]
+
         cipher_text = base64.b64decode(rowUserAndAccount[9])
         cookies = json.loads(cipher_suite.decrypt(cipher_text).decode())
         async with httpx.AsyncClient() as http:
             responseTiny = await http.get(url)
+
         original_url = responseTiny.headers['Location']
+
+        driver = webdriver.Chrome(options=options)
+
+        driver.execute_cdp_cmd('Network.enable', {})
+        cookie_pass = {"name": "siteLanguage", "value": "en", "domain": "z-library.se"}
+        driver.execute_cdp_cmd('Network.setCookie', cookie_pass)
+        driver.execute_cdp_cmd('Network.disable', {})
+
         driver.get(original_url)
 
         for name, value in cookies.items():
@@ -356,15 +402,30 @@ async def answer(app, callback_query):
 
         driver.refresh()
 
-        await app.edit_message_text(text=f"⏳ <i>Carico le informazioni...</i>",
-                                    chat_id=callback_query.from_user.id, message_id=formatState.id)
         try:
             element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "a.addDownloadedBook"))
             )
+            await app.edit_message_text(text=messages[rowUserAndAccount[6]]['formats_found'],
+                                        chat_id=callback_query.from_user.id, message_id=formatState.id)
 
-            html = driver.page_source
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+            time.sleep(5)
+            src = driver.execute_script("""
+                let cover = document.querySelector("z-cover");
+                if (cover) {
+                    let shadowRoot = cover.shadowRoot;
+                    if (shadowRoot) {
+                        let img = shadowRoot.querySelector('img');
+                        if (img) {
+                            return img.getAttribute('src') || img.getAttribute('data-src');
+                        }
+                    }
+                }
+                return null;
+            """)
+
             drop = soup.find('ul', {'class': 'dropdown-menu'})
             downloadListHoriz = []
             downloadListVert = []
@@ -409,9 +470,9 @@ async def answer(app, callback_query):
                 downloadListVert
             )
             book = soup.find("h1", {"itemprop": "name"})
-            cover = soup.find("div", {"class": "z-book-cover covered"}).find("img").get("src")
+
             async with httpx.AsyncClient() as http:
-                coverFile = (await http.get(cover))
+                coverFile = (await http.get(src))
             book_cover = Image.open(BytesIO(coverFile.content))
 
             altezza_massima = 400
@@ -427,18 +488,19 @@ async def answer(app, callback_query):
             beige_back.save(buffer, format='JPEG')
             buffer.seek(0)
             await app.send_photo(photo=buffer,
-                                 caption=f"✨<i> Ecco i formati disponibili per <b>{book.text.strip().lower()}</b>.\n\n📕 Scegli "
-                                         f"quello che preferisci, clicca il bottone, e partirà il <b>download</b>.</i>",
+                                 caption=messages[rowUserAndAccount[6]]['formats_results'].format(
+                                     title=book.text.strip().lower()),
                                  reply_markup=reply_markup, chat_id=callback_query.from_user.id)
 
             await formatState.delete()
 
         except:
+
             await app.edit_message_text(
-                text=f"🥺<i> Purtroppo, il libro potrebbe non essere più <b>disponibile</b>.\n\n📖 Prova a "
-                     f"scegliere un'<b>edizione</b> diversa.</i>",
+                text=messages[rowUserAndAccount[6]]['formats_not_found'],
                 chat_id=callback_query.from_user.id,
                 message_id=formatState.id)
+        driver.quit()
 
     if callback_query.data.split("/", 1)[0] == "download":
 
@@ -507,7 +569,7 @@ async def answer(app, callback_query):
         if rowBook is None:
             if rowUserAndAccount is not None and rowUserAndAccount[4] < rowUserAndAccount[3]:
                 download_messaggio = await app.send_message(
-                    text="✉️ <i>Ho iniziato il <b>download</b>. Attendi in linea!</i>",
+                    text=messages[rowUserAndAccount[6]]["download_started"],
                     chat_id=callback_query.from_user.id)
 
                 cipher_text = base64.b64decode(rowUserAndAccount[9])
@@ -529,7 +591,8 @@ async def answer(app, callback_query):
                     file = await converter(cookies, file_url, download_messaggio, callback_query, name)
 
                 await app.send_document(document=file,
-                                        caption=f"❕ <i>Download completato! Con questo, oggi hai scaricato <b>{rowUserAndAccount[4] + 1}</b> libro/i.</i>",
+                                        caption=messages[rowUserAndAccount[6]]["downloaded_book"].format(
+                                            new_count=rowUserAndAccount[4] + 1),
                                         chat_id=callback_query.from_user.id)
                 cur.execute(
                     "INSERT INTO books(id, title, url ) VALUES(%s, %s, %s)",
@@ -543,13 +606,14 @@ async def answer(app, callback_query):
 
             else:
                 await app.send_message(
-                    text="⚠️ <i>Purtroppo, hai raggiunto il tuo <b>limite</b> giornaliero. Non puoi più scaricare "
-                         "libri per oggi.</i>",
+                    text=messages[rowUserAndAccount[6]]['daily_limit_message'],
                     chat_id=callback_query.from_user.id)
 
 
 async def create_account():
     cur = conn.cursor()
+
+    print("entrato nel metodo")
 
     async with httpx.AsyncClient() as http:
         response_creation = await http.post("https://api.simplelogin.io/api/alias/random/new", headers={
@@ -696,6 +760,4 @@ scheduler.add_job(create_accounts, 'cron', hour=22)
 scheduler.start()
 
 keep_alive()
-# scheduler.add_job(createAccount, 'interval', minutes=1)
-
 app.run()
