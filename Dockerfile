@@ -20,6 +20,8 @@ RUN python3 -m venv /opt/venv
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
+COPY . $HOME/app
+
 RUN pip install -r requirements.txt
 
 CMD ["python3", "main.py"]
