@@ -1,5 +1,4 @@
 psycopg2-binary
-pyshorteners
 lxml
 TgCrypto
 httpx

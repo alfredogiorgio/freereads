@@ -4,10 +4,9 @@ import json
 import base64
 import secrets
 import string
-import datetime
+from datetime import datetime, timedelta
 import re
 import time
-
 import psycopg2
 from PIL import Image
 
@@ -23,7 +22,6 @@ from selenium import webdriver
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 import os
-import pyshorteners
 from pyrogram import Client, filters
 import imaplib
 from bs4 import BeautifulSoup
@@ -63,7 +61,20 @@ options.add_argument("--disable-gpu")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 
-shortener = pyshorteners.Shortener()
+home_button = [InlineKeyboardButton("↩️ Home", callback_data="home")]
+
+
+@app.on_message(filters.command('broadcast') & filters.private & filters.user(int(os.getenv('ACCOUNT_ID'))))
+async def broadcast(app, message):
+    print("prova")
+
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET step = %s WHERE id = %s", ("broadcast", message.from_user.id))
+    conn.commit()
+
+    await message.reply_text(
+        text="📣 Invia ora il messaggio da inviare a tutti gli utenti!",
+        quote=True)
 
 
 # Comando start
@@ -135,14 +146,14 @@ async def start(app, message):
                                   callback_data="search")]
         ])
 
-        now = datetime.datetime.now()
-        hour = datetime.datetime.now().replace(day=now.day, hour=21, minute=0, second=0)
+        now = datetime.now()
+        hour = datetime.now().replace(day=now.day, hour=21, minute=0, second=0)
         difference = hour - now
 
         await message.reply_text(
 
             text=messages[rowUser[6]]["home"].format(username=message.from_user.mention(),
-                                                     difference=difference, downloaded=rowUser[4]),
+                                                     difference=str(difference).split('.')[0], downloaded=rowUser[4]),
             reply_markup=home_markup
         )
 
@@ -193,7 +204,7 @@ async def request(app, message):
                     authorsText = []
                     for author in authors:
                         authorsText.append(author.text)
-                    resultJson['author'] = ' '.join(authorsText)
+                    resultJson['author'] = ', '.join(authorsText)
                     result.append(resultJson)
 
                 results = messages[rowUser[6]]["search_results"].format(query=message.text.strip().lower())
@@ -211,11 +222,19 @@ async def request(app, message):
 
                     print(complete)
 
-                    short_url = shortener.tinyurl.short(complete)
-                    if len(res['author']) == 0 and 'pub' not in res.keys() and 'year' not in res.keys():
-                        results = results + f"""{index + 1})<b> {res['name']}</b> - <i>{res['lang']}</i>\n\n"""
+                    short_url = await url_shortener(complete)
+
+                    if 'lang' in res.keys():
+                        if len(res['author']) == 0 and 'pub' not in res.keys() and 'year' not in res.keys():
+                            results = results + f"""{index + 1})<b> {res['name']}</b> - <i>{res['lang']}</i>\n\n"""
+                        else:
+                            results = results + f"""{index + 1})<b> {res['name']}</b> - <i>{res['lang']}</i>\n"""
+
                     else:
-                        results = results + f"""{index + 1})<b> {res['name']}</b> - <i>{res['lang']}</i>\n"""
+                        if len(res['author']) == 0 and 'pub' not in res.keys() and 'year' not in res.keys():
+                            results = results + f"""{index + 1})<b> {res['name']}</b>\n\n"""
+                        else:
+                            results = results + f"""{index + 1})<b> {res['name']}</b>\n"""
 
                     if len(res['author']) > 0:
 
@@ -256,6 +275,14 @@ async def request(app, message):
                 text=messages[rowUser[6]]["search_not_found"].format(title=message.text.strip().lower()),
                 message_id=stateMessage.id, chat_id=message.from_user.id)
 
+    if rowUser is not None and rowUser[5] == 'broadcast':
+        await send_message_followers(message)
+        await app.send_message(
+            text="👌🏻 Messaggio inviato a tutti gli utenti.",
+            chat_id=message.from_user.id, reply_markup=InlineKeyboardMarkup([
+                home_button
+            ]))
+
     await message.delete()
 
 
@@ -271,8 +298,6 @@ async def answer(app, callback_query):
     """, (callback_query.from_user.id,))
 
     rowUserAndAccount = cur.fetchone()
-
-    home_button = [InlineKeyboardButton("↩️ Home", callback_data="home")]
 
     if callback_query.data == "search":
         reply_markup = InlineKeyboardMarkup([
@@ -361,13 +386,13 @@ async def answer(app, callback_query):
                                   callback_data="search")]
         ])
 
-        now = datetime.datetime.now()
-        hour = datetime.datetime.now().replace(day=now.day, hour=21, minute=0, second=0)
+        now = datetime.now()
+        hour = datetime.now().replace(day=now.day, hour=21, minute=0, second=0)
         difference = hour - now
 
         await app.edit_message_text(
             text=messages[rowUserAndAccount[6]]['home'].format(username=callback_query.from_user.mention(),
-                                                               difference=difference,
+                                                               difference=str(difference).split('.')[0],
                                                                downloaded=rowUserAndAccount[4]),
             reply_markup=home_markup,
             chat_id=callback_query.from_user.id, message_id=callback_query.message.id
@@ -382,10 +407,8 @@ async def answer(app, callback_query):
 
         cipher_text = base64.b64decode(rowUserAndAccount[9])
         cookies = json.loads(cipher_suite.decrypt(cipher_text).decode())
-        async with httpx.AsyncClient() as http:
-            responseTiny = await http.get(url)
 
-        original_url = responseTiny.headers['Location']
+        original_url = await get_original_url(url)
 
         driver = webdriver.Chrome(options=options)
 
@@ -432,7 +455,7 @@ async def answer(app, callback_query):
             aButton = soup.find('a', {'class': 'btn btn-primary addDownloadedBook'}, href=True)
             urlButton = aButton.get('href')
             completeButton = "https://z-library.se" + urlButton
-            shortButton = shortener.tinyurl.short(completeButton)
+            shortButton = await url_shortener(completeButton)
 
             aS = drop.find_all('a', {'class': 'addDownloadedBook'}, href=True)
             aS.append(aButton)
@@ -451,7 +474,7 @@ async def answer(app, callback_query):
                     url = a.get('href')
 
                     complete = "https://z-library.se" + url
-                    short_url = shortener.tinyurl.short(complete)
+                    short_url = await url_shortener(complete)
 
                     downloadListHoriz.append(InlineKeyboardButton(
                         text,
@@ -507,9 +530,7 @@ async def answer(app, callback_query):
         urlNotClean = callback_query.data.split("/", 1)[1]
         url = urlNotClean.split("-", 1)[0]
 
-        async with httpx.AsyncClient() as http:
-            responseTiny = await http.get(url)
-            file_url = responseTiny.headers['Location']
+        file_url = await get_original_url(url)
         idBook = re.search(r'/dl/(\d+)/', file_url).group(1)
 
         cur.execute("SELECT * FROM books WHERE id = %s", (idBook,))
@@ -576,9 +597,8 @@ async def answer(app, callback_query):
                 cookies = json.loads(cipher_suite.decrypt(cipher_text).decode())
 
                 async with httpx.AsyncClient() as http:
-                    responseTiny = await http.get(url)
-                    file_url = responseTiny.headers['Location']
-                    res = await http.get(file_url, cookies=cookies)
+                    res = await http.get(await get_original_url(url), cookies=cookies)
+                    print(res.headers['Location'])
                     last = await http.get(res.headers['Location'])
 
                 file = BytesIO(last.content)
@@ -754,9 +774,51 @@ async def create_accounts():
         chat_id=os.getenv('ACCOUNT_ID'))
 
 
+async def url_shortener(complete):
+    shorten_url = os.urandom(16).hex()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO urls (id, original_url, expiry) VALUES (%s, %s, %s)",
+        (shorten_url, complete, datetime.now() + timedelta(days=7)))
+    conn.commit()
+    return shorten_url
+
+
+async def get_original_url(shorten_url):
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM urls WHERE id = %s",
+                (shorten_url,))
+    return cur.fetchone()[1]
+
+
+async def send_message_followers(message):
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users")
+    users = cur.fetchall()
+    for user in users:
+        try:
+            await message.forward(user[0])
+            print("inviato " + str(user[0]))
+
+        except:
+            cur.execute("DELETE FROM users WHERE id = %s ", (user[0],))
+            cur.execute("UPDATE accounts SET act_users = act_users - 1  WHERE id = %s", (user[2],))
+            print("tolto utente " + str(user[0]))
+
+    conn.commit()
+
+
+async def clean_urls():
+    cur = conn.cursor()
+    cur.execute("DELETE FROM urls WHERE expiry < CURRENT_DATE")
+    conn.commit()
+
+
 scheduler = AsyncIOScheduler()
 scheduler.add_job(reset_downloaded, 'cron', hour=21)
 scheduler.add_job(create_accounts, 'cron', hour=22)
+scheduler.add_job(clean_urls, 'cron', hour=23)
+
 scheduler.start()
 
 keep_alive()
