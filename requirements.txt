@@ -6,7 +6,7 @@ APScheduler
 selenium
 cryptography
 python-dotenv
-Pyrogram
+git+https://github.com/KurimuzonAkuma/pyrogram.git@v2.1.16
 bs4
 beautifulsoup4
 psycopg2
