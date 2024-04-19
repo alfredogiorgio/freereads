@@ -938,8 +938,6 @@ scheduler.add_job(reset_downloaded, 'cron', hour=21)
 scheduler.add_job(create_accounts, 'cron', hour=22)
 scheduler.add_job(clean_urls, 'cron', hour=23)
 
-asyncio.run(create_accounts())
-
 scheduler.start()
 
 keep_alive()
