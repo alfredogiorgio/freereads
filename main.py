@@ -159,8 +159,8 @@ async def start(app, message):
             )
 
     except Exception as e:
-        app.send_message(
-            text="<i><b>Eccezione messaggio, utente: " + message.from_user.id + "</b>, log: " + str(e) + "</i>",
+        await app.send_message(
+            text="<i><b>Eccezione messaggio, utente: " + str(message.from_user.id) + "</b>, log: " + str(e) + "</i>",
             chat_id=os.getenv('ACCOUNT_ID'))
 
 
@@ -310,8 +310,8 @@ async def request(app, message):
                 ]))
 
     except Exception as e:
-        app.send_message(
-            text="<i><b>Eccezione messaggio, utente: " + message.from_user.id + "</b>, log: " + str(e) + "</i>",
+        await app.send_message(
+            text="<i><b>Eccezione messaggio, utente: " + str(message.from_user.id) + "</b>, log: " + str(e) + "</i>",
             chat_id=os.getenv('ACCOUNT_ID'))
 
     await message.delete()
@@ -722,8 +722,9 @@ async def answer(app, callback_query):
                             text=messages[rowUserAndAccount[6]]['daily_limit_message'],
                             chat_id=callback_query.from_user.id)
     except Exception as e:
-        app.send_message(
-            text="<i><b>Eccezione callback, utente: " + callback_query.from_user.id + "</b>, log: " + str(e) + "</i>",
+        await app.send_message(
+            text="<i><b>Eccezione callback, utente: " + str(callback_query.from_user.id) + "</b>, log: " + str(
+                e) + "</i>",
             chat_id=os.getenv('ACCOUNT_ID'))
 
 
@@ -865,14 +866,22 @@ async def converter(cookies, file_url, last_message, callback_query, name, rowUs
 
 
 async def create_accounts():
-    i = 0
-    while i < 10:
-        await create_account()
-        await asyncio.sleep(30)
-        i += 1
-    await app.send_message(
-        text=" <i>🗓 Creati <b>account</b>!</i>",
-        chat_id=os.getenv('ACCOUNT_ID'))
+    try:
+        i = 0
+        while i < 10:
+            await create_account()
+            await asyncio.sleep(30)
+            i += 1
+        await app.send_message(
+            text=" <i>🗓 Creati <b>account</b>!</i>",
+            chat_id=os.getenv('ACCOUNT_ID'))
+
+
+    except Exception as e:
+
+        await app.send_message(
+            text="<i><b>Eccezione create accounts,</b> log: " + str(e) + "</i>",
+            chat_id=os.getenv('ACCOUNT_ID'))
 
 
 async def url_shortener(complete):
