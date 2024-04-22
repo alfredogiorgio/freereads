@@ -584,8 +584,11 @@ async def answer(app, callback_query):
 
                 await formatState.delete()
 
-            except:
-
+            except Exception as e:
+                await app.send_message(
+                    text="<i><b>Eccezione formato, utente: " + str(callback_query.from_user.id) + "</b>, log: " + str(
+                        e) + "</i>",
+                    chat_id=os.getenv('ACCOUNT_ID'))
                 await app.edit_message_text(
                     text=messages[rowUserAndAccount[6]]['formats_not_found'],
                     chat_id=callback_query.from_user.id,
