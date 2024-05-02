@@ -4,6 +4,7 @@ import json
 import base64
 import secrets
 import string
+import traceback
 from datetime import datetime, timedelta
 import re
 import time
@@ -419,9 +420,10 @@ async def answer(app, callback_query):
         # Profilo
         if callback_query.data == "profile":
             reply_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📚 Libri scaricati", callback_data="downloadedBooks"),
-                 InlineKeyboardButton("⭐ Preferiti", callback_data="favorites")],
-                [InlineKeyboardButton("🔖 Lista desideri", callback_data="wishlist")],
+                [InlineKeyboardButton(messages[rowUserAndAccount[6]]["downloaded_button"],
+                                      callback_data="downloadedBooks"),
+                 InlineKeyboardButton(messages[rowUserAndAccount[6]]["favorites_button"], callback_data="favorites")],
+                [InlineKeyboardButton(messages[rowUserAndAccount[6]]["wishlist_button"], callback_data="wishlist")],
                 home_button
             ])
 
@@ -728,7 +730,7 @@ async def answer(app, callback_query):
     except Exception as e:
         await app.send_message(
             text="<i><b>Eccezione callback, utente: " + str(callback_query.from_user.id) + "</b>, log: " + str(
-                e) + "</i>",
+                traceback.format_exc()) + "</i>",
             chat_id=os.getenv('ACCOUNT_ID'))
 
 
