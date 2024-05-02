@@ -651,6 +651,7 @@ async def answer(app, callback_query):
 
                     async with httpx.AsyncClient() as http:
                         res = await http.get(rowBook[2], cookies=cookies)
+                        print(str(res.status_code) + " \n\n " + res.headers)
                         last = await http.get(res.headers['Location'])
                     file = BytesIO(last.content)
 
