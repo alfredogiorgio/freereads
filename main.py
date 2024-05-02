@@ -204,7 +204,7 @@ async def request(app, message):
             stateMessage = await app.send_message(text=messages[rowUser[6]]["search_loading"],
                                                   chat_id=message.from_user.id)
 
-            async with httpx.AsyncClient(proxies={"https://": "https://35.185.196.38"}) as http:
+            async with httpx.AsyncClient(proxies={"https://": "https://35.185.196.38:3128"}) as http:
                 response = await http.get(domain + '/s/' + message.text, timeout=30, cookies={"siteLanguage": "en"})
 
             await app.send_message(text=str(response.status_code),
