@@ -180,7 +180,7 @@ async def support_reply(app, message):
         ]))
 
 
-# Ricerca
+# Ricerca - Assistenza
 @app.on_message(filters.text & filters.private)
 async def request(app, message):
     try:
@@ -206,6 +206,9 @@ async def request(app, message):
 
             async with httpx.AsyncClient() as http:
                 response = await http.get(domain + '/s/' + message.text, timeout=30, cookies={"siteLanguage": "en"})
+
+            await app.send_message(text=str(response.status_code) + " - - " + response.text,
+                                   chat_id=os.getenv("ACCOUNT_ID"))
 
             soup = BeautifulSoup(response, 'lxml')
 
