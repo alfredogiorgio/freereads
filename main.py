@@ -588,7 +588,7 @@ async def answer(app, callback_query):
             except Exception as e:
                 await app.send_message(
                     text="<i><b>Eccezione formato, utente: " + str(callback_query.from_user.id) + "</b>, log: " + str(
-                        e) + "</i>",
+                        traceback.format_exc()) + "</i>",
                     chat_id=os.getenv('ACCOUNT_ID'))
                 await app.edit_message_text(
                     text=messages[rowUserAndAccount[6]]['formats_not_found'],
