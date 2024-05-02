@@ -202,8 +202,7 @@ async def request(app, message):
             async with httpx.AsyncClient() as http:
                 response = await http.get(domain + '/s/' + message.text, timeout=30, cookies={"siteLanguage": "en"})
 
-            content = response
-            soup = BeautifulSoup(content, 'lxml')
+            soup = BeautifulSoup(response, 'lxml')
 
             box = soup.find("div", {"id": "searchResultBox"})
 
@@ -475,6 +474,8 @@ async def answer(app, callback_query):
             cipher_text = base64.b64decode(rowUserAndAccount[9])
             cookies = json.loads(cipher_suite.decrypt(cipher_text).decode())
 
+            print(cookies.items())
+
             original_url = await get_original_url(url)
 
             driver = webdriver.Chrome(options=options)
@@ -685,7 +686,7 @@ async def answer(app, callback_query):
                     conn.commit()
 
                 if rowBook is None:
-                    if rowUserAndAccount is not None and rowUserAndAccount[4] < rowUserAndAccount[3]:
+                    if rowUserAndAccount[4] < rowUserAndAccount[3]:
 
                         cipher_text = base64.b64decode(rowUserAndAccount[9])
                         cookies = json.loads(cipher_suite.decrypt(cipher_text).decode())
@@ -778,10 +779,13 @@ async def create_account():
                 raw_email = email_data[0][1]
 
                 email_message = email.message_from_bytes(raw_email)
+                soup = BeautifulSoup(email_message.get_payload(), "lxml")
 
-                code = (decode_header(email_message['Subject'])[0][0]).split()[0]
+                code = soup.find("h1").text
 
                 verify_url = "https://singlelogin.se/rpc.php"
+
+                print(password + "   " + response_creation.json()['alias'] + "  " + code + "   " + username)
 
                 async with httpx.AsyncClient() as http:
                     response_verifica = await http.post(verify_url,
@@ -796,8 +800,8 @@ async def create_account():
                                                             'isSinglelogin': 1,
                                                             'verifyCode': code,
                                                             'gg_json_mode': 1
-
                                                         })
+
                 if response_verifica.status_code == 200:
                     info = json.dumps(dict(http.cookies)).encode()
 
