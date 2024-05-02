@@ -476,8 +476,6 @@ async def answer(app, callback_query):
             cipher_text = base64.b64decode(rowUserAndAccount[9])
             cookies = json.loads(cipher_suite.decrypt(cipher_text).decode())
 
-            print(cookies.items())
-
             original_url = await get_original_url(url)
 
             driver = webdriver.Chrome(options=options)
@@ -650,8 +648,10 @@ async def answer(app, callback_query):
                     cookies = json.loads(cipher_suite.decrypt(cipher_text).decode())
 
                     async with httpx.AsyncClient() as http:
+                        print(cookies)
                         res = await http.get(rowBook[2], cookies=cookies)
-                        print(str(res.status_code) + " \n\n " + str(res.headers))
+                        app.send_message(chat_id=os.getenv('ACCOUNT_ID'),
+                                         text=str(res.status_code) + " \n\n " + str(res.headers))
                         last = await http.get(res.headers['Location'])
                     file = BytesIO(last.content)
 
