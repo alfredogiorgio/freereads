@@ -650,8 +650,8 @@ async def answer(app, callback_query):
                     async with httpx.AsyncClient() as http:
                         print(cookies)
                         res = await http.get(rowBook[2], cookies=cookies)
-                        app.send_message(chat_id=os.getenv('ACCOUNT_ID'),
-                                         text=str(res.status_code) + " \n\n " + str(res.headers))
+                        await app.send_message(chat_id=os.getenv('ACCOUNT_ID'),
+                                               text=str(res.status_code) + " \n\n " + str(res.headers))
                         last = await http.get(res.headers['Location'])
                     file = BytesIO(last.content)
 
