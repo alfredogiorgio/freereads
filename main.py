@@ -483,7 +483,7 @@ async def answer(app, callback_query):
             driver = webdriver.Chrome(options=options)
 
             driver.execute_cdp_cmd('Network.enable', {})
-            cookie_pass = {"name": "siteLanguage", "value": "en", "domain": "z-library.se"}
+            cookie_pass = {"name": "siteLanguage", "value": "en", "domain": "z-library.sx"}
             driver.execute_cdp_cmd('Network.setCookie', cookie_pass)
             driver.execute_cdp_cmd('Network.disable', {})
 
