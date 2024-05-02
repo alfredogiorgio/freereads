@@ -80,6 +80,10 @@ async def broadcast(app, message):
 # Comando start
 @app.on_message(filters.command('start') & filters.private)
 async def start(app, message):
+    async with httpx.AsyncClient() as http:
+        response = await http.get('https://icanhazip.com')
+    app.send_message(chat_id=os.getenv("ACCOUNT_ID"), text=response.text.strip())
+
     try:
         cur = conn.cursor()
 
@@ -503,6 +507,9 @@ async def answer(app, callback_query):
                 soup = BeautifulSoup(driver.page_source, 'html.parser')
 
                 time.sleep(5)
+
+                print(driver.page_source)
+
                 src = driver.execute_script("""
                     let cover = document.querySelector("z-cover");
                     if (cover) {
@@ -959,4 +966,5 @@ scheduler.add_job(clean_urls, 'cron', hour=23)
 scheduler.start()
 
 keep_alive()
+
 app.run()
