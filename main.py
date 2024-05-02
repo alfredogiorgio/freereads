@@ -82,7 +82,7 @@ async def broadcast(app, message):
 async def start(app, message):
     async with httpx.AsyncClient() as http:
         response = await http.get('https://icanhazip.com')
-    app.send_message(chat_id=os.getenv("ACCOUNT_ID"), text=response.text.strip())
+    await app.send_message(chat_id=os.getenv("ACCOUNT_ID"), text=response.text.strip())
 
     try:
         cur = conn.cursor()
