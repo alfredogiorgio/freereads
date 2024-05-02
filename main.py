@@ -318,7 +318,8 @@ async def request(app, message):
 
     except Exception as e:
         await app.send_message(
-            text="<i><b>Eccezione messaggio, utente: " + str(message.from_user.id) + "</b>, log: " + str(e) + "</i>",
+            text="<i><b>Eccezione messaggio, utente: " + str(message.from_user.id) + "</b>, log: " + str(
+                traceback.format_exc()) + "</i>",
             chat_id=os.getenv('ACCOUNT_ID'))
 
     await message.delete()
