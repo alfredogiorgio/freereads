@@ -524,7 +524,7 @@ async def answer(app, callback_query):
                 downloadListVert = []
                 aButton = soup.find('a', {'class': 'btn btn-primary addDownloadedBook'}, href=True)
                 urlButton = aButton.get('href')
-                completeButton = "https://z-library.se" + urlButton
+                completeButton = domain + urlButton
                 shortButton = await url_shortener(completeButton)
 
                 aS = drop.find_all('a', {'class': 'addDownloadedBook'}, href=True)
@@ -543,7 +543,7 @@ async def answer(app, callback_query):
 
                         url = a.get('href')
 
-                        complete = "https://z-library.se" + url
+                        complete = domain + url
                         short_url = await url_shortener(complete)
 
                         downloadListHoriz.append(InlineKeyboardButton(
@@ -695,7 +695,6 @@ async def answer(app, callback_query):
 
                         async with httpx.AsyncClient() as http:
                             res = await http.get(await get_original_url(url), cookies=cookies)
-                            print(res.headers['Location'])
                             last = await http.get(res.headers['Location'])
 
                         file = BytesIO(last.content)
