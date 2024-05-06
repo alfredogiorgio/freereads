@@ -40,6 +40,10 @@ gmail_user = os.getenv('GMAIL_USER')
 gmail_pass = os.getenv('GMAIL_PASS')
 imap_url = "imap.gmail.com"
 
+headersUser = headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+}
+
 conn = psycopg2.connect(
     dbname=os.getenv('DB_NAME'),
     user=os.getenv('DB_USER'),
@@ -204,17 +208,30 @@ async def request(app, message):
             stateMessage = await app.send_message(text=messages[rowUser[6]]["search_loading"],
                                                   chat_id=message.from_user.id)
 
-            async with httpx.AsyncClient(proxies={"https://": "http://35.185.196.38:3128"}, verify=False) as http:
-                response = await http.get(domain + '/s/' + message.text, timeout=30, cookies={"siteLanguage": "en"})
+            cur.execute("SELECT * FROM proxies")
+            rowsProxy = cur.fetchall()
 
-            await app.send_message(text=str(response.status_code),
-                                   chat_id=os.getenv("ACCOUNT_ID"))
+            box = None
+            for rowProxy in rowsProxy:
 
-            soup = BeautifulSoup(response, 'lxml')
+                try:
+                    async with httpx.AsyncClient(proxies={"https://": f"http://{rowProxy[0]}"}, verify=False) as http:
+                        response = await http.get(domain + '/s/' + message.text, timeout=30,
+                                                  cookies={"siteLanguage": "en"},
+                                                  headers=headersUser)
 
-            box = soup.find("div", {"id": "searchResultBox"})
+                    soup = BeautifulSoup(response.text, 'lxml')
 
-            if box != None:
+                    box = soup.find("div", {"id": "searchResultBox"})
+                    print(len(box.find_all("div", {"class": "resItemBox resItemBoxBooks exactMatch"})))
+                    await app.send_message(text=str(response) + " usato proxy a caso: " + rowProxy[0],
+                                           chat_id=os.getenv("ACCOUNT_ID"))
+                    break
+                except Exception as e:
+                    print("passo al successivo " + str(e))
+
+            print(box)
+            if box is not None:
                 divs = box.find_all("div", {"class": "resItemBox resItemBoxBooks exactMatch"})
 
                 if len(divs) > 0:
@@ -486,6 +503,8 @@ async def answer(app, callback_query):
 
             original_url = await get_original_url(url)
 
+            options.add_argument("--proxy-server=http://35.185.196.38:3128")
+
             driver = webdriver.Chrome(options=options)
 
             driver.execute_cdp_cmd('Network.enable', {})
@@ -512,21 +531,18 @@ async def answer(app, callback_query):
 
                 time.sleep(5)
 
-                print(driver.page_source)
-
                 src = driver.execute_script("""
-                    let cover = document.querySelector("z-cover");
+                 let cover = document.querySelector("z-cover");
                     if (cover) {
                         let shadowRoot = cover.shadowRoot;
                         if (shadowRoot) {
                             let img = shadowRoot.querySelector('img');
-                            if (img) {
-                                return img.getAttribute('src') || img.getAttribute('data-src');
-                            }
-                        }
-                    }
-                    return null;
-                """)
+                                            if (img) {
+                                                return img.getAttribute('src') || img.getAttribute('data-src');
+                                            }
+                                        }
+                                    }
+                            """)
 
                 drop = soup.find('ul', {'class': 'dropdown-menu'})
                 downloadListHoriz = []
@@ -573,21 +589,31 @@ async def answer(app, callback_query):
                 )
                 book = soup.find("h1", {"itemprop": "name"})
 
-                async with httpx.AsyncClient() as http:
-                    coverFile = (await http.get(src))
-                book_cover = Image.open(BytesIO(coverFile.content))
+                beige_back = Image.new('RGBA', (1080, 580), (245, 245, 220))
+
+                if src is not None:
+                    async with httpx.AsyncClient() as http:
+                        coverFile = (await http.get(src))
+                    book_cover = Image.open(BytesIO(coverFile.content))
+
+                else:
+                    book_cover = Image.open("images/no-cover.png")
 
                 altezza_massima = 400
                 rapporto = altezza_massima / book_cover.height
                 dimensione_nuova = (int(book_cover.width * rapporto), altezza_massima)
                 book_cover_resized = book_cover.resize(dimensione_nuova, Image.LANCZOS)
 
-                beige_back = Image.new('RGB', (1080, 580), (245, 245, 220))
                 position = ((beige_back.width - book_cover_resized.width) // 2,
                             (beige_back.height - book_cover_resized.height) // 2)
-                beige_back.paste(book_cover_resized, position)
+
+                if src is None:
+                    beige_back.paste(book_cover_resized, position, book_cover_resized)
+                else:
+                    beige_back.paste(book_cover_resized, position)
+
                 buffer = BytesIO()
-                beige_back.save(buffer, format='JPEG')
+                beige_back.save(buffer, format='PNG')
                 buffer.seek(0)
                 await app.send_photo(photo=buffer,
                                      caption=messages[rowUserAndAccount[6]]['formats_results'].format(
@@ -962,10 +988,49 @@ def progress_bar(rowUserAndAccount, progress_message, app):
     return progress
 
 
+async def get_proxies():
+    cur = conn.cursor()
+
+    async with httpx.AsyncClient() as http:
+        response = await http.get(os.getenv("PROXY_DOMAIN"))
+
+    soup = BeautifulSoup(response.text, "lxml")
+
+    trs = soup.find("table", {"class": "table table-striped table-bordered"}).find("tbody").find_all("tr")
+    for tr in trs:
+        tds = tr.find_all("td")
+        if tds[6].text == 'yes':
+            proxy = tds[0].text + ":" + tds[1].text
+            async with httpx.AsyncClient(proxies={"https://": f"http://{proxy}"},
+                                         verify=False) as http:
+
+                try:
+                    response = await http.get(domain + "/s/test", timeout=30, cookies={"siteLanguage": "en"})
+
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.text, "lxml")
+                        if soup.find("div", {"id": "searchResultBox"}) is not None:
+                            cur.execute("SELECT COUNT(*) FROM proxies WHERE proxy = %s", (proxy,))
+                            check = cur.fetchone()
+
+                            if check[0] == 0:
+                                cur.execute("INSERT INTO proxies(proxy) values(%s)", (proxy,))
+                                print("inserito     " + tds[0].text + ":" + tds[1].text)
+
+                        else:
+                            print("risposta diversa")
+                except Exception as e:
+                    print("non andato     " + tds[0].text + ":" + tds[1].text + "   " + str(e))
+
+    conn.commit()
+    print("\n\n finito")
+
+
 scheduler = AsyncIOScheduler()
 scheduler.add_job(reset_downloaded, 'cron', hour=21)
 scheduler.add_job(create_accounts, 'cron', hour=22)
 scheduler.add_job(clean_urls, 'cron', hour=23)
+scheduler.add_job(get_proxies, 'interval', minutes=30)
 
 scheduler.start()
 
